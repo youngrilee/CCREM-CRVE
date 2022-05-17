@@ -20,8 +20,9 @@ source("01. simulation functions.R")
 design_factors <- list(
   gamma000 = 0, gamma100 = c(0, 0.01, 0.03, 0.05), 
   gamma010 = c(0, 0.1, 0.3, 0.5), gamma002 = c(0, 0.1, 0.3, 0.5), 
-  H = c(20, 70, 150), G = c(70, 245, 525), ICC = c(0.05, 0.15, 0.25), 
-  rho = c(0, 0.4), sparse = .1, J = c(30, 60),
+  H = c(20, 70, 150), G = c(70, 245, 525), 
+  ICC_H = c(0.05, 0.15, 0.25), ICC_G = c(.05),
+  rho = c(0), sparse = .1, J = c(30, 100),
   L1cov_m = 0, L1cov_sd = 10,  L2cov_m = 0, L2cov_sd = 1,
   assumption = c("met", "heterosced", "exogeneity")
 )
