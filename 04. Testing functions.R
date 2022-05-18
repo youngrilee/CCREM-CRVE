@@ -14,7 +14,7 @@ library(future)
 library(furrr)
 
 rm(list = ls())
-source("01. simulation functions.R")
+source("02. simulation functions.R")
 
 # Data Generating Model----------------------------------------------------
 set.seed(20201216)
@@ -26,9 +26,10 @@ dat <- generate_dat(
   gamma002 = 0.3,      # coefficient for Z (neighborhood)
   G = 70,              # neighbor j = {1..g}
   H = 20,              # school k = {1..h}
-  ICC = 0.15,          # ICC
-  rho = .4,            # correlation between dimensions
-  sparse = .1,         # sparcity 
+  ICC_g = 0.05,        # neighbor ICC
+  ICC_h = 0.15,        # school ICC
+  tau_G10 = .05,       # random slope variance (neighborhood)
+  sparse = .1,         # sparsity 
   J = 30,              # average number of students per school
   L1cov_m = 0,
   L1cov_sd = 10,
@@ -49,6 +50,7 @@ calc_performance(results)
 # Simulation driver -------------------------------------------------------
 run_sim(iterations = 1, 
         gamma000 = 0, gamma100 = 0.03, gamma010 = 0.3, gamma002 = 0.3,  
-        G = 70, H = 20, ICC = 0.15, rho = .4, sparse = .1, J = 30,
+        G = 70, H = 20, ICC_g = 0.05, ICC_h = 0.15, tau_G10 = .05, 
+        sparse = .1, J = 30,
         L1cov_m = 0, L1cov_sd = 10,  L2cov_m = 0, L2cov_sd = 1, 
         assumption = "met")

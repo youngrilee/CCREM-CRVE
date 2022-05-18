@@ -1,13 +1,13 @@
 # Data Generating Model----------------------------------------------------
 generate_dat <- function(gamma000, gamma100, gamma010, gamma002,
-                         G, H, ICC, rho, sparse, J,
+                         G, H, ICC_g, ICC_h, tau_G10, sparse, J,
                          L1cov_m, L1cov_sd, L2cov_m, L2cov_sd,
                          assumption){
   
-  # set sigma, tau_g000 and tau_h000 based on ICC
-  tau_g000 = ICC # Neighborhood
-  tau_h000 = ICC # School
-  sigma = sqrt(1-tau_g000-tau_h000)
+  # set sigma, tau_G00 and tau_H00 based on ICC
+  tau_G00 = ICC_g # Neighborhood
+  tau_H00 = ICC_h # School
+  sigma = sqrt(1-tau_G00-tau_H00)
   
   # data assignment
   dat <- rerun(.n = H, runif(J, min = 1, max = sparse*G)) %>% 
@@ -21,26 +21,28 @@ generate_dat <- function(gamma000, gamma100, gamma010, gamma002,
   # neighborhood data
   # create between-neighborhood variance of X 
   X_bw_neigh <- dat %>% group_by(neighid) %>% tally() %>% 
-    select(-n) %>% ungroup() %>% 
+    dplyr::select(-n) %>% ungroup() %>% 
     mutate(X_bw_neigh = rnorm(nrow(.), mean = L1cov_m, sd = sqrt(.2*L1cov_sd^2)))
   
   if (assumption == "exogeneity"){
     # when exogeneity assumption is violated
-    r_g <- 0.4 # correlation
+    r_g <- 0.4 # correlation between X_bw_neigh and b_0g0
     
     neighbordata <-
-      dat %>% group_by(neighid) %>% tally() %>% select(-n) %>% ungroup() %>%       
-      left_join(X_bw_neigh, by = "neighid") %>% 
+      X_bw_neigh %>% 
       mutate(W = rnorm(nrow(.), mean = L2cov_m, sd = L2cov_sd),
-             v_0g0 = rnorm(nrow(.), mean = 0, sd = sqrt((1-r_g^2)*tau_g000)),
-             b_0g0 = r_g*sqrt(tau_g000/(.2*L1cov_sd^2))*X_bw_neigh + v_0g0) %>% 
-      select(-v_0g0)
+             v_0g0 = rnorm(nrow(.), mean = 0, sd = sqrt((1-r_g^2)*tau_G00)),
+             b_0g0 = r_g*sqrt(tau_G00/(.2*L1cov_sd^2))*X_bw_neigh + v_0g0, # neighborhood random effect
+             v_1g0 = rnorm(nrow(.), mean = 0, sd = sqrt((1-r_g^2)*tau_G10)),
+             b_1g0 = r_g*sqrt(tau_G00/(.2*L1cov_sd^2))*X_bw_neigh + v_1g0) %>% # random slope for X
+      dplyr::select(-c(v_0g0, v_1g0))
   } else {
     # when all assumptions are met:
     neighbordata <-
-      dat %>% group_by(neighid) %>% tally() %>% select(-n) %>% ungroup() %>% 
+      X_bw_neigh %>% 
       mutate(W = rnorm(nrow(.), mean = L2cov_m, sd = L2cov_sd),
-             b_0g0 = rnorm(nrow(.), mean = 0, sd = sqrt(tau_g000)))
+             b_0g0 = rnorm(nrow(.), mean = 0, sd = sqrt(tau_G00)), # neighborhood random effect
+             b_1g0 = rnorm(nrow(.), mean = 0, sd = sqrt(tau_G10))) # random slope for X
   }
   
   dat <- dat %>% left_join(neighbordata, by = "neighid") 
@@ -54,38 +56,24 @@ generate_dat <- function(gamma000, gamma100, gamma010, gamma002,
               Q = n()) %>% # average number of neighborhood connected to each school
     ungroup %>% 
     mutate(Z = rnorm(H, mean = L2cov_m, sd = L2cov_sd), # neighborhood-level W
-           e_00h = rnorm(H, mean = 0, sd = sqrt((1-rho^2)*tau_h000)),
-           R = rho*sqrt(tau_h000)/sqrt(Q*tau_g000),
-           c_00h = R*sumI_b_0g0 + e_00h)
+           c_00h = rnorm(H, mean = 0, sd = sqrt(tau_H00)))
   
   dat <- dat %>% left_join(schooldata, by = "schid")
   
   # student data
   # between-school and within variance of X
-  X_bw_neigh <- dat %>% group_by(neighid) %>% tally() %>% 
-    select(-n) %>% ungroup() %>% 
-    mutate(X_bw_neigh = rnorm(nrow(.), mean = L1cov_m, sd = sqrt(.2*L1cov_sd^2)))
-  
   X_bw_school <- dat %>% group_by(schid) %>% tally() %>% 
-    select(-n) %>% ungroup() %>% 
+    dplyr::select(-n) %>% ungroup() %>% 
     mutate(X_bw_school = rnorm(nrow(.), mean = L1cov_m, sd = sqrt(.2*L1cov_sd^2)))
   
   X_within <- data.frame(
     X_within = rnorm(nrow(dat), mean = L1cov_m, sd = sqrt(.6*L1cov_sd^2)))
   
   # student-level X
-  if (assumption == "exogeneity"){
-    dat <- dat %>% 
-      left_join(X_bw_school, by = "schid") %>% 
-      bind_cols(X_within) %>% 
-      mutate(X = X_bw_neigh + X_bw_school + X_within)
-  }else{
-    dat <- dat %>% 
-      left_join(X_bw_neigh, by = "neighid") %>%
-      left_join(X_bw_school, by = "schid") %>% 
-      bind_cols(X_within) %>% 
-      mutate(X = X_bw_neigh + X_bw_school + X_within)
-  }
+  dat <- dat %>% 
+    left_join(X_bw_school, by = "schid") %>% 
+    bind_cols(X_within) %>% 
+    mutate(X = X_bw_neigh + X_bw_school + X_within)
   
   # student-level residuals u
   if (assumption == "heterosced") {
@@ -99,8 +87,8 @@ generate_dat <- function(gamma000, gamma100, gamma010, gamma002,
   
   dat <- dat %>% 
     mutate(stuid = 1:nrow(.)) %>% 
-    select(stuid, schid, neighid, X, W, Z, b_0g0, c_00h, u) %>% 
-    mutate(y = gamma000 + gamma100*X + gamma010*W + gamma002*Z + b_0g0 + c_00h + u)
+    dplyr::select(stuid, schid, neighid, X, W, Z, b_1g0, b_0g0, c_00h, u) %>% 
+    mutate(y = gamma000 + (gamma100 + b_1g0)*X + gamma010*W + gamma002*Z + b_0g0 + c_00h + u)
   
   return(dat)
 }
@@ -208,7 +196,7 @@ calc_performance <- function(results) {
   
   # Hypothesis Testing
   rejection_rate <- results %>% 
-    select(-var) %>% 
+    dplyr::select(-var) %>% 
     group_by(method, cov) %>% 
     mutate(rej_rate = mean(ifelse(abs(est - param)/se >= 1.96, 1, 0), na.rm = T))
   
@@ -236,7 +224,7 @@ calc_performance <- function(results) {
 
 # Simulation driver -------------------------------------------------------
 run_sim <- function(iterations, gamma000, gamma100, gamma010, gamma002, 
-                    G, H, ICC, rho, sparse, J, 
+                    G, H, ICC_g, ICC_h, tau_G10, sparse, J, 
                     L1cov_m, L1cov_sd, L2cov_m, L2cov_sd, assumption,
                     seed = NULL) {
   if (!is.null(seed)) set.seed(seed)
@@ -246,7 +234,8 @@ run_sim <- function(iterations, gamma000, gamma100, gamma010, gamma002,
       data <- generate_dat(
         gamma000 = gamma000, gamma100 = gamma100,
         gamma010 = gamma010, gamma002 = gamma002,
-        G = G, H = H, ICC = ICC, rho = rho, sparse = sparse, J = J,
+        G = G, H = H, ICC_g = ICC_g, ICC_h = ICC_h, tau_G10 = tau_G10,
+        sparse = sparse, J = J,
         L1cov_m = L1cov_m, L1cov_sd = L1cov_sd,
         L2cov_m = L2cov_m, L2cov_sd = L2cov_sd, assumption = assumption)
       estimate(dat = data, gamma100 = gamma100, gamma010 = gamma010,
