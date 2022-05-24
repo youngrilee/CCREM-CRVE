@@ -27,14 +27,20 @@ design_factors <- list(
   assumption = c("met", "heterosced", "exogeneity")
 )
 
-params <- cross_df(design_factors) %>%
-  mutate(iterations = 1000, 
-         seed = 20210712 + 1:n()) %>%
+params <- 
+  cross_df(design_factors) %>%
   # filter only relevant conditions
-  filter((gamma100 == 0.01 & gamma010 == 0.1 & gamma002 == 0.1) |
-         (gamma100 == 0.03 & gamma010 == 0.3 & gamma002 == 0.3) |
-         (gamma100 == 0.05 & gamma010 == 0.5 & gamma002 == 0.5)) %>%
-  filter((G == 70 & H == 20) | (G == 245 & H == 70) | (G ==525 & H == 150))
+  filter(
+    (gamma100 == 0.01 & gamma010 == 0.1 & gamma002 == 0.1) |
+    (gamma100 == 0.03 & gamma010 == 0.3 & gamma002 == 0.3) |
+    (gamma100 == 0.05 & gamma010 == 0.5 & gamma002 == 0.5),
+    (G == 70 & H == 20) | (G == 245 & H == 70) | (G ==525 & H == 150)
+  ) %>%
+  mutate(
+    iterations = 1000, 
+    seed = 20210712 + 1:n()
+  )
+  
 
 #--------------------------------------------------------
 # run simulations in parallel - future + furrr workflow
@@ -43,8 +49,9 @@ params <- cross_df(design_factors) %>%
 options(error=recover)
 plan(multisession) 
 system.time(
-  # results <- pmap(params, .f = run_sim)
-  results <- params %>% mutate(res = pmap(., .f = run_sim)) %>%
+  results <- 
+    params %>% 
+    mutate(res = pmap(., .f = run_sim)) %>%
     unnest(cols = res)
 ) 
 
