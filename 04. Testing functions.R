@@ -24,8 +24,8 @@ dat <- generate_dat(
   gamma100 = 0.03,     # coefficient for X (student)
   gamma010 = 0.3,      # coefficient for W (school)
   gamma002 = 0.3,      # coefficient for Z (neighborhood)
-  G = 70,              # neighbor j = {1..g}
-  H = 20,              # school k = {1..h}
+  G = 70,              # neighbor g = {1..G}
+  H = 20,              # school h = {1..H}
   ICC_g = 0.05,        # neighbor ICC
   ICC_h = 0.15,        # school ICC
   tau_G10 = .05,       # random slope variance (neighborhood)
@@ -58,8 +58,8 @@ results <-
       gamma100 = gamma100, # coefficient for X (student)
       gamma010 = gamma010, # coefficient for W (school)
       gamma002 = gamma002, # coefficient for Z (neighborhood)
-      G = 70,              # neighbor j = {1..g}
-      H = 20,              # school k = {1..h}
+      G = 70,              # neighbor g = {1..G}
+      H = 20,              # school h = {1..H}
       ICC_g = 0.05,        # neighbor ICC
       ICC_h = 0.15,        # school ICC
       tau_G10 = .05,       # random slope variance (neighborhood)
@@ -103,11 +103,11 @@ dat_met <- generate_dat(
   gamma100 = gamma100, # coefficient for X (student)
   gamma010 = gamma010, # coefficient for W (school)
   gamma002 = gamma002, # coefficient for Z (neighborhood)
-  G = 1000,              # neighbor j = {1..g}
-  H = 1000,              # school k = {1..h}
-  ICC_g = ICC_g,        # neighbor ICC
-  ICC_h = ICC_h,        # school ICC
-  tau_G10 = tau_G10,       # random slope variance (neighborhood)
+  G = 1000,            # neighbor g = {1..G}
+  H = 1000,            # school h = {1..H}
+  ICC_g = ICC_g,       # neighbor ICC
+  ICC_h = ICC_h,       # school ICC
+  tau_G10 = tau_G10,   # random slope variance (neighborhood)
   sparse = .1,         # sparsity 
   J = 30,              # average number of students per school
   L1cov_m = 0,
@@ -151,7 +151,7 @@ cor(dat_sch) # should all be near zero
 
 # student effects
 sd(dat_met$u)
-sqrt(1 - ICC_g - ICC_h)
+sqrt(1 - ICC_g - ICC_h) # should match sd of u
 lm_fit <- lm(u ~ X, data = dat_met)
 plot(lm_fit)
 
@@ -163,11 +163,11 @@ dat_slopes <- generate_dat(
   gamma100 = gamma100, # coefficient for X (student)
   gamma010 = gamma010, # coefficient for W (school)
   gamma002 = gamma002, # coefficient for Z (neighborhood)
-  G = 1000,              # neighbor j = {1..g}
-  H = 1000,              # school k = {1..h}
-  ICC_g = ICC_g,        # neighbor ICC
-  ICC_h = ICC_h,        # school ICC
-  tau_G10 = tau_G10,       # random slope variance (neighborhood)
+  G = 1000,            # neighbor g = {1..G}
+  H = 1000,            # school h = {1..H}
+  ICC_g = ICC_g,       # neighbor ICC
+  ICC_h = ICC_h,       # school ICC
+  tau_G10 = tau_G10,   # random slope variance (neighborhood)
   sparse = .1,         # sparsity 
   J = 30,              # average number of students per school
   L1cov_m = 0,
@@ -180,6 +180,19 @@ dat_slopes <- generate_dat(
 model <- lmer(y ~ 1 + X + W + Z + (1 | schid) + (1 + W | neighid), data = dat_slopes)
 summary(model) # Variance components and fixed effects should closely match parameters
 
+# neighborhood effects
+dat_neigh <- 
+  dat_slopes %>% 
+  select(neighid, W, b_0g0, b_1g0, X_bw_neigh) %>%
+  distinct()
+dat_neigh %>%
+  summarise(
+    across(-neighid, list(M = ~ mean(.x), SD = ~ sd(.x)))
+  )
+sqrt(ICC_g)          # should match sd of b_0g0
+L1cov_sd * sqrt(0.2) # should match sd of X_bw_neigh
+sqrt(tau_G10)        # should match sd of b_1g0
+
 # Check endogeneity condition --------------------------------------------------
 
 dat_endo <- generate_dat(
@@ -187,8 +200,8 @@ dat_endo <- generate_dat(
   gamma100 = gamma100, # coefficient for X (student)
   gamma010 = gamma010, # coefficient for W (school)
   gamma002 = gamma002, # coefficient for Z (neighborhood)
-  G = 1000,              # neighbor j = {1..g}
-  H = 1000,              # school k = {1..h}
+  G = 1000,              # neighbor g = {1..G}
+  H = 1000,              # school h = {1..H}
   ICC_g = ICC_g,        # neighbor ICC
   ICC_h = ICC_h,        # school ICC
   tau_G10 = tau_G10,       # random slope variance (neighborhood)
@@ -232,7 +245,7 @@ cor(dat_sch) # should all be near zero
 
 # student effects
 sd(dat_endo$u)
-sqrt(1 - ICC_g - ICC_h)
+sqrt(1 - ICC_g - ICC_h) # should match sd of u
 lm_fit <- lm(u ~ X, data = dat_endo)
 plot(lm_fit)
 
@@ -243,11 +256,11 @@ dat_het <- generate_dat(
   gamma100 = gamma100, # coefficient for X (student)
   gamma010 = gamma010, # coefficient for W (school)
   gamma002 = gamma002, # coefficient for Z (neighborhood)
-  G = 1000,              # neighbor j = {1..g}
-  H = 1000,              # school k = {1..h}
-  ICC_g = ICC_g,        # neighbor ICC
-  ICC_h = ICC_h,        # school ICC
-  tau_G10 = tau_G10,       # random slope variance (neighborhood)
+  G = 1000,            # neighbor g = {1..G}
+  H = 1000,            # school h = {1..H}
+  ICC_g = ICC_g,       # neighbor ICC
+  ICC_h = ICC_h,       # school ICC
+  tau_G10 = tau_G10,   # random slope variance (neighborhood)
   sparse = .1,         # sparsity 
   J = 30,              # average number of students per school
   L1cov_m = 0,
@@ -289,7 +302,7 @@ cor(dat_sch) # should all be near zero
 
 # student effects
 sd(dat_het$u)
-sqrt(1 - ICC_g - ICC_h)
+sqrt(1 - ICC_g - ICC_h) # should match sd of u
 lm_fit <- lm(u ~ X, data = dat_het)
 plot(lm_fit)
 

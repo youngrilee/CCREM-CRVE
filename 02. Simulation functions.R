@@ -40,8 +40,7 @@ generate_dat <- function(gamma000, gamma100, gamma010, gamma002,
         b_0g0 = r_g * sqrt(tau_G00 / (.2 * L1cov_sd ^ 2)) * X_bw_neigh + v_0g0, # neighborhood random effect
         
         v_1g0 = rnorm(nrow(.), mean = 0, sd = sqrt((1 - r_g ^ 2) * tau_G10)),
-        b_1g0 = r_g * sqrt(tau_G00 / (.2 * L1cov_sd ^ 2)) * X_bw_neigh + v_1g0 # random slope for X
-        # JEP: In the previous line, shouldn't it be tau_G10 instead of tau_G00?
+        b_1g0 = r_g * sqrt(tau_G10 / (.2 * L1cov_sd ^ 2)) * X_bw_neigh + v_1g0 # random slope for X
       ) %>% 
       dplyr::select(-c(v_0g0, v_1g0))
     
@@ -60,71 +59,20 @@ generate_dat <- function(gamma000, gamma100, gamma010, gamma002,
   dat <- dat %>% left_join(neighbordata, by = "neighid") 
   
   # school data
+  # create between-school variance of X
   schooldata <- 
     dat %>% 
-    # JEP: I don't think we need any of the following
-    # group_by(schid, neighid) %>%
-    # summarise(b_0g0 = mean(b_0g0)) %>% # random effect per neighborhood
-    # ungroup() %>% 
-    # group_by(schid) %>%
-    # summarise(
-    #   sumI_b_0g0 = sum(b_0g0), # sum of neighborhood random effects per school
-    #   Q = n()                  # average number of neighborhood connected to each school
-    # ) %>% 
-    # ungroup %>% 
-
-    # JEP: I replaced it with the following two lines
     group_by(schid) %>%
     summarise() %>%
     mutate(
-      Z = rnorm(H, mean = L2cov_m, sd = L2cov_sd), # neighborhood-level W
-      c_00h = rnorm(H, mean = 0, sd = sqrt(tau_H00))
+      Z = rnorm(H, mean = L2cov_m, sd = L2cov_sd), # neighborhood-level Z
+      c_00h = rnorm(H, mean = 0, sd = sqrt(tau_H00)),
+      X_bw_school = rnorm(nrow(.), mean = L1cov_m, sd = sqrt(.2*L1cov_sd^2))
     )
   
   dat <- dat %>% left_join(schooldata, by = "schid")
   
   # student data
-  # between-school and within variance of X
-  X_bw_school <- 
-    dat %>% group_by(schid) %>% tally() %>% 
-    dplyr::select(-n) %>% ungroup() %>% 
-    mutate(X_bw_school = rnorm(nrow(.), mean = L1cov_m, sd = sqrt(.2*L1cov_sd^2)))
-  # JEP: You can do this calculation in the previous code chunk (right after c_00h)
-  # JEP: THen you won't need the chunk below
-  
-  dat <-
-    dat %>%
-    left_join(X_bw_school, by = "schid")
-  
-  X_within <- data.frame(
-    X_within = rnorm(nrow(dat), mean = L1cov_m, sd = sqrt(.6*L1cov_sd^2))
-  )
-  # JEP: Do this in the mutate step below, right before you calculate X, so that you don't have to create a separate data.frame.
-  
-  # JEP: I revised the following for simplicity, so that everything happens in 
-  # a single mutate() step.
-  # # student-level X
-  # dat <-
-  #   dat %>%
-  #   left_join(X_bw_school, by = "schid") %>%
-  #   bind_cols(X_within) %>%
-  #   mutate(X = X_bw_neigh + X_bw_school + X_within)
-  # 
-  # # student-level residuals u
-  # if (assumption == "heterosced") {
-  #   dat <- dat %>%
-  #     mutate(u = rnorm(nrow(.), mean = 0,
-  #                      sd = L1cov_sd*sqrt(exp((15*X - 50)/15^2))))
-  # } else { # assumption met
-  #   dat <- dat %>%
-  #     mutate(u = rnorm(nrow(.), mean = 0, sd = sigma))
-  # }
-  # 
-  # dat <- dat %>%
-  #   mutate(stuid = 1:nrow(.)) %>%
-  #   dplyr::select(stuid, schid, neighid, X, W, Z, b_1g0, b_0g0, c_00h, u) %>%
-  #   mutate(y = gamma000 + (gamma100 + b_1g0) * X + gamma010 * W + gamma002 * Z + b_0g0 + c_00h + u)
-
   dat <-
     dat %>%
     mutate(
@@ -136,13 +84,11 @@ generate_dat <- function(gamma000, gamma100, gamma010, gamma002,
       X = X_bw_neigh + X_bw_school + X_within,
       
       # student-level residuals u
-      # JEP: I modified the formula below. It used to have L1cov_sd where sigma should have been.
-      # JEP: I also generalized it so that it works for any values of L1cov_m and L1cov_sd.
       u_sd = if (assumption == "heterosced") sigma * sqrt(exp((2 * 15 * (X - L1cov_m) - L1cov_sd^2) / (2 * 15^2))) else sigma,
       u = rnorm(nrow(.), mean = 0, sd = u_sd),
       
       # outcome variable
-      y = gamma000 + (gamma100 + b_1g0) * X + gamma010 * W + gamma002 * Z + b_0g0 + c_00h + u
+      y = gamma000 + gamma100 * X + gamma010 * W + gamma002 * Z + b_1g0 * X_within + b_0g0 + c_00h + u
     )
 
   return(dat)
@@ -169,14 +115,10 @@ estimate_ccrem <- function(dat) {
     filter(cov %in% c("X", "W", "Z"))
   
   # convergence
-  # JEP: Why NA out the estimates here? 
-  # Doing this means that the CCREM results are based on a different set of replications than the OLS or FE results.
-  # Could we just keep track of convergence rates instead, but still use the CCREM estimates from non-converged cases?
   if (is.na(is.na(model@optinfo$conv$lme4)[1])) {
-    fixed_est <- fixed_est
+    fixed_est <- fixed_est %>% mutate(converged = 1) # converged
   } else{
-    fixed_est <- fixed_est %>%
-      mutate(est = NA, se = NA, pval = NA)
+    fixed_est <- fixed_est %>% mutate(converged = 0) # failed to converge
   }
   
   return(fixed_est)
@@ -262,9 +204,9 @@ calc_performance <- function(results, CI_level = .95) {
   crit <- qnorm((1 + CI_level) / 2)
   rejection_rate <- results %>% 
     dplyr::select(-var) %>% 
+    mutate(rej_rate = ifelse(abs(est - param)/se >= crit, 1, 0)) %>% 
     group_by(method, cov) %>% 
-    mutate(rej_rate = mean(ifelse(abs(est - param)/se >= crit, 1, 0), na.rm = T))
-  # JEP: I think this mutate() needs to be a summarise()?
+    summarise(rej_rate = mean(rej_rate))
   
   power <- results %>%
     group_by(method, cov) %>%
@@ -278,12 +220,18 @@ calc_performance <- function(results, CI_level = .95) {
                                  upper_bound = upper_bound, 
                                  true_param = param))
   
+  # Convergence Rate
+  convergence <- results %>% 
+    group_by(method, cov) %>% 
+    summarise(convergence_rate = sum(converged)/n())
+  
   performance_measures <- rejection_rate %>% 
     left_join(abs_crit, by = c("method", "cov")) %>% 
     left_join(rel_crit, by = c("method", "cov", "K")) %>% 
     left_join(rel_crit_val, by = c("method", "cov", "K")) %>% 
     left_join(power, by = c("method", "cov", "K")) %>% 
-    left_join(conf_int, by = c("method", "cov", "K"))
+    left_join(conf_int, by = c("method", "cov", "K")) %>% 
+    left_join(convergence, by = c("method", "cov"))
   
   return(performance_measures)
 }
