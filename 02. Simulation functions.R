@@ -1,8 +1,8 @@
 # Data Generating Model----------------------------------------------------
 generate_dat <- function(gamma000, gamma100, gamma010, gamma002,
-                         G, H, ICC_g, ICC_h, tau_G10, sparse, J,
+                         G, H, ICC_g, ICC_h, sparse, J,
                          L1cov_m, L1cov_sd, L2cov_m, L2cov_sd,
-                         assumption){
+                         assumption) {
   
   # set sigma, tau_G00 and tau_H00 based on ICC
   tau_G00 = ICC_g # Neighborhood
@@ -27,6 +27,8 @@ generate_dat <- function(gamma000, gamma100, gamma010, gamma002,
     group_by(neighid) %>% 
     summarise() %>% 
     mutate(X_bw_neigh = rnorm(nrow(.), mean = L1cov_m, sd = sqrt(.2 * L1cov_sd^2)))
+  
+  tau_G10 <- if (assumption == "random slopes") 0.05 else 0.00
   
   if (assumption == "exogeneity") {
     # when exogeneity assumption is violated
@@ -109,17 +111,12 @@ estimate_ccrem <- function(dat) {
     as_tibble(rownames = "cov") %>% 
     dplyr::select(cov, est = Estimate, se = `Std. Error`, pval = `Pr(>|t|)`) %>%
     mutate(
-      method = "CCREM"
+      method = "CCREM",
+      # convergence
+      converged = (is.na(is.na(model@optinfo$conv$lme4)[1]))
     ) %>% 
     dplyr::select(cov, method, everything()) %>% 
     filter(cov %in% c("X", "W", "Z"))
-  
-  # convergence
-  if (is.na(is.na(model@optinfo$conv$lme4)[1])) {
-    fixed_est <- fixed_est %>% mutate(converged = 1) # converged
-  } else{
-    fixed_est <- fixed_est %>% mutate(converged = 0) # failed to converge
-  }
   
   return(fixed_est)
 }
@@ -206,7 +203,7 @@ calc_performance <- function(results, CI_level = .95) {
     dplyr::select(-var) %>% 
     mutate(rej_rate = ifelse(abs(est - param)/se >= crit, 1, 0)) %>% 
     group_by(method, cov) %>% 
-    summarise(rej_rate = mean(rej_rate))
+    summarise(rej_rate = mean(rej_rate), .groups = "drop")
   
   power <- results %>%
     group_by(method, cov) %>%
@@ -223,7 +220,7 @@ calc_performance <- function(results, CI_level = .95) {
   # Convergence Rate
   convergence <- results %>% 
     group_by(method, cov) %>% 
-    summarise(convergence_rate = sum(converged)/n())
+    summarise(convergence_rate = sum(converged)/n(), .groups = "drop")
   
   performance_measures <- rejection_rate %>% 
     left_join(abs_crit, by = c("method", "cov")) %>% 
@@ -238,7 +235,7 @@ calc_performance <- function(results, CI_level = .95) {
 
 # Simulation driver -------------------------------------------------------
 run_sim <- function(iterations, gamma000, gamma100, gamma010, gamma002, 
-                    G, H, ICC_g, ICC_h, tau_G10, sparse, J, 
+                    G, H, ICC_g, ICC_h, sparse, J, 
                     L1cov_m, L1cov_sd, L2cov_m, L2cov_sd, assumption,
                     seed = NULL) {
   if (!is.null(seed)) set.seed(seed)
@@ -248,7 +245,7 @@ run_sim <- function(iterations, gamma000, gamma100, gamma010, gamma002,
       generate_dat(
         gamma000 = gamma000, gamma100 = gamma100,
         gamma010 = gamma010, gamma002 = gamma002,
-        G = G, H = H, ICC_g = ICC_g, ICC_h = ICC_h, tau_G10 = tau_G10,
+        G = G, H = H, ICC_g = ICC_g, ICC_h = ICC_h, 
         sparse = sparse, J = J,
         L1cov_m = L1cov_m, L1cov_sd = L1cov_sd,
         L2cov_m = L2cov_m, L2cov_sd = L2cov_sd, assumption = assumption

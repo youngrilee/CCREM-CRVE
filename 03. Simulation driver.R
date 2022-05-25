@@ -4,8 +4,6 @@ library(sandwich)
 library(lmtest)
 library(lmerTest)
 library(lfe)
-library(knitr)
-library(kableExtra)
 library(truncnorm)
 library(purrr)
 library(simhelpers) # citation("simhelpers")
@@ -14,17 +12,17 @@ library(future)
 library(furrr)
 
 rm(list = ls())
-source("02. simulation functions.R")
+source("04. Codes/02. simulation functions.R")
 
 # simulation parameters as vectors/lists
 design_factors <- list(
   gamma000 = 0, gamma100 = c(0.01, 0.03, 0.05), 
   gamma010 = c(0.1, 0.3, 0.5), gamma002 = c(0.1, 0.3, 0.5), 
   G = c(70, 245, 525), H = c(20, 70, 150), # H = school; G = neighborhood
-  ICC_g = c(.05), ICC_h = c(0.05, 0.15, 0.25), tau_G10 = c(0, .05),
+  ICC_g = c(.05), ICC_h = c(0.05, 0.15, 0.25), 
   sparse = .1, J = c(30, 100),
   L1cov_m = 0, L1cov_sd = 10,  L2cov_m = 0, L2cov_sd = 1,
-  assumption = c("met", "heterosced", "exogeneity")
+  assumption = c("met", "heterosced", "exogeneity", "random slopes")
 )
 
 params <- 
@@ -37,21 +35,24 @@ params <-
     (G == 70 & H == 20) | (G == 245 & H == 70) | (G ==525 & H == 150)
   ) %>%
   mutate(
-    iterations = 2, 
-    seed = 20210712 + 1:n()
+    iterations = 20, 
+    seed = 20220525 + 1:n()
   )
   
+nrow(params)
+head(params)
 
 #--------------------------------------------------------
 # run simulations in parallel - future + furrr workflow
 #--------------------------------------------------------
 # pmap
 options(error=recover)
-plan(multisession) 
+plan("multisession") 
+
 system.time(
   results <-
     params %>%
-    mutate(res = pmap(., .f = run_sim)) %>%
+    mutate(res = future_pmap(., .f = run_sim, .options = furr_options(seed=NULL))) %>%
     unnest(cols = res)
 ) 
 

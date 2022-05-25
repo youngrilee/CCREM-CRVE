@@ -28,14 +28,13 @@ dat <- generate_dat(
   H = 20,              # school h = {1..H}
   ICC_g = 0.05,        # neighbor ICC
   ICC_h = 0.15,        # school ICC
-  tau_G10 = .05,       # random slope variance (neighborhood)
   sparse = .1,         # sparsity 
   J = 30,              # average number of students per school
   L1cov_m = 0,
   L1cov_sd = 10,
   L2cov_m = 0,
   L2cov_sd = 1, 
-  assumption = "exogeneity" # heterosced, exogeneity or met
+  assumption = "exogeneity" # heterosced, exogeneity, random slopes, or met
 )  
 
 dat %>% head()
@@ -62,14 +61,13 @@ results <-
       H = 20,              # school h = {1..H}
       ICC_g = 0.05,        # neighbor ICC
       ICC_h = 0.15,        # school ICC
-      tau_G10 = .05,       # random slope variance (neighborhood)
       sparse = .1,         # sparsity 
       J = 30,              # average number of students per school
       L1cov_m = 0,
       L1cov_sd = 10,
       L2cov_m = 0,
       L2cov_sd = 1, 
-      assumption = "exogeneity"
+      assumption = "exogeneity" # heterosced, exogeneity, random slopes, or met
     ) %>%
       estimate()
   }) %>%
@@ -83,7 +81,7 @@ calc_performance(results)
 # Simulation driver -------------------------------------------------------
 run_sim(iterations = 10, 
         gamma000 = 0, gamma100 = 0.03, gamma010 = 0.3, gamma002 = 0.3,  
-        G = 70, H = 20, ICC_g = 0.05, ICC_h = 0.15, tau_G10 = .05, 
+        G = 70, H = 20, ICC_g = 0.05, ICC_h = 0.15, 
         sparse = .1, J = 30,
         L1cov_m = 0, L1cov_sd = 10,  L2cov_m = 0, L2cov_sd = 1, 
         assumption = "met")
@@ -96,7 +94,6 @@ gamma002 = 0.3
 ICC_g = 0.05
 ICC_h = 0.15
 L1cov_sd = 10
-tau_G10 = 0
 
 dat_met <- generate_dat(
   gamma000 = 0,        # overall average
@@ -107,14 +104,13 @@ dat_met <- generate_dat(
   H = 1000,            # school h = {1..H}
   ICC_g = ICC_g,       # neighbor ICC
   ICC_h = ICC_h,       # school ICC
-  tau_G10 = tau_G10,   # random slope variance (neighborhood)
   sparse = .1,         # sparsity 
   J = 30,              # average number of students per school
   L1cov_m = 0,
   L1cov_sd = L1cov_sd,
   L2cov_m = 0,
   L2cov_sd = 1, 
-  assumption = "met" # heterosced, exogeneity or met
+  assumption = "met" # heterosced, exogeneity, random slopes, or met
 )
 
 model <- lmer(y ~ 1 + X + W + Z + (1 | schid) + (1 | neighid), data = dat_met)
@@ -156,7 +152,6 @@ lm_fit <- lm(u ~ X, data = dat_met)
 plot(lm_fit)
 
 # Check random slopes condition --------------------------------------------------------
-tau_G10 = 0.25
 
 dat_slopes <- generate_dat(
   gamma000 = 0,        # overall average
@@ -167,17 +162,16 @@ dat_slopes <- generate_dat(
   H = 1000,            # school h = {1..H}
   ICC_g = ICC_g,       # neighbor ICC
   ICC_h = ICC_h,       # school ICC
-  tau_G10 = tau_G10,   # random slope variance (neighborhood)
   sparse = .1,         # sparsity 
   J = 30,              # average number of students per school
   L1cov_m = 0,
   L1cov_sd = L1cov_sd,
   L2cov_m = 0,
   L2cov_sd = 1, 
-  assumption = "met" # heterosced, exogeneity or met
-)
+  assumption = "random slopes" # heterosced, exogeneity, random slopes, or met
+) 
 
-model <- lmer(y ~ 1 + X + W + Z + (1 | schid) + (1 + W | neighid), data = dat_slopes)
+model <- lmer(y ~ 1 + X + W + Z + (1 | schid) + (1 + X | neighid), data = dat_slopes)
 summary(model) # Variance components and fixed effects should closely match parameters
 
 # neighborhood effects
@@ -191,7 +185,13 @@ dat_neigh %>%
   )
 sqrt(ICC_g)          # should match sd of b_0g0
 L1cov_sd * sqrt(0.2) # should match sd of X_bw_neigh
-sqrt(tau_G10)        # should match sd of b_1g0
+sqrt(.05)        # should match sd of b_1g0
+
+# student effects
+sd(dat_slopes$u)
+sqrt(1 - ICC_g - ICC_h) # should match sd of u
+lm_fit <- lm(u ~ X, data = dat_slopes)
+plot(lm_fit)
 
 # Check endogeneity condition --------------------------------------------------
 
@@ -204,14 +204,13 @@ dat_endo <- generate_dat(
   H = 1000,              # school h = {1..H}
   ICC_g = ICC_g,        # neighbor ICC
   ICC_h = ICC_h,        # school ICC
-  tau_G10 = tau_G10,       # random slope variance (neighborhood)
   sparse = .1,         # sparsity 
   J = 30,              # average number of students per school
   L1cov_m = 0,
   L1cov_sd = L1cov_sd,
   L2cov_m = 0,
   L2cov_sd = 1, 
-  assumption = "exogeneity" # heterosced, exogeneity or met
+  assumption = "exogeneity" # heterosced, exogeneity, random slopes, or met
 )  
 
 # neighborhood effects
@@ -260,14 +259,13 @@ dat_het <- generate_dat(
   H = 1000,            # school h = {1..H}
   ICC_g = ICC_g,       # neighbor ICC
   ICC_h = ICC_h,       # school ICC
-  tau_G10 = tau_G10,   # random slope variance (neighborhood)
   sparse = .1,         # sparsity 
   J = 30,              # average number of students per school
   L1cov_m = 0,
   L1cov_sd = L1cov_sd,
   L2cov_m = 0,
   L2cov_sd = 1, 
-  assumption = "heterosced" # heterosced, exogeneity or met
+  assumption = "heterosced" # heterosced, exogeneity, random slopes, or met
 )  
 
 
