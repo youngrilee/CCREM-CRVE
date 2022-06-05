@@ -1,5 +1,7 @@
 ---
 title: "Simulation Results"
+subtitle: "Comparing Random Effects Models, Ordinary Least Squares, or Fixed Effects with Cluster Robust Standard Errors for Cross-Classified Data"
+author: "Young Ri Lee"
 output: 
   html_document:
     toc: true
@@ -25,9 +27,7 @@ rm(list = ls())
 load("sim_results.RData")
 results <- 
   results %>% 
-  mutate(method = recode(method, 
-                         "OLS" = "OLS-CRVE",
-                         "FE" = "FE-CRVE"),
+  mutate(method = recode(method, "OLS" = "OLS-CRVE", "FE" = "FE-CRVE"),
          method = factor(method, levels = c("CCREM", "OLS-CRVE", "FE-CRVE")),
          beta = as.factor(gamma100),
          H = as.factor(H),
@@ -35,22 +35,21 @@ results <-
                          "100" = "Students per school = 100"),
          J_f = factor(J_f, levels = c("Students per school = 30", 
                                       "Students per school = 100")),
-         ICC_h = as.factor(ICC_h))
-
-results_assump <- 
-  results %>% 
-  filter(assumption %in% c("met", "heterosced", "exogeneity")) %>% 
-  mutate(assumption = recode(assumption,
-                              "met" = "Assumptions met",
-                              "heterosced" = "Homoscedasticity violated",
-                              "exogeneity" = "Exogeneity violated"),
+         ICC_h = as.factor(ICC_h), 
+         assumption = recode(assumption,
+                             "met" = "Assumptions met",
+                             "heterosced" = "Homoscedasticity",
+                             "exogeneity" = "Exogeneity",
+                             "random slopes" = "Random Slopes"),
          assumption = factor(assumption, 
                              levels = c("Assumptions met", 
-                                        "Homoscedasticity violated", 
-                                        "Exogeneity violated")))
+                                        "Homoscedasticity", 
+                                        "Exogeneity",
+                                        "Random Slopes")))
 
-X <- results_assump %>% filter(cov == "X")
-W <- results_assump %>% filter(cov == "W")
+X <- results %>% filter(cov == "X") # level-1 cov
+W <- results %>% filter(cov == "W") # level-2 cov, neighborhood
+Z <- results %>% filter(cov == "Z") # level-2 cov, school
 
 # ANOVA functions ---------------------------------------------------------------
 fml <- " ~ as.factor(method)+as.factor(beta)+as.factor(H)+as.factor(J)+as.factor(ICC_h)+
@@ -69,22 +68,37 @@ tidy_func <- function(obj){
 }
 
 table_anova <- function(outcome, cov){
-  fit1 <- aov(as.formula(paste0(outcome, fml)), data = cov %>% filter(assumption == "Assumptions met"))
+  fit1 <- aov(as.formula(paste0(outcome, fml)), 
+              data = cov %>% filter(assumption == "Assumptions met"))
   fit1 <- tidy_func(fit1)
   
-  fit2 <- aov(as.formula(paste0(outcome, fml)), data = cov %>% filter(assumption == "Homoscedasticity violated"))
+  fit2 <- aov(as.formula(paste0(outcome, fml)), 
+              data = cov %>% filter(assumption == "Homoscedasticity"))
   fit2 <- tidy_func(fit2)
   
-  fit3 <- aov(as.formula(paste0(outcome, fml)), data = cov %>% filter(assumption == "Exogeneity violated"))
+  fit3 <- aov(as.formula(paste0(outcome, fml)), 
+              data = cov %>% filter(assumption == "Exogeneity"))
   fit3 <- tidy_func(fit3)
   
+  fit4 <- aov(as.formula(paste0(outcome, fml)), 
+              data = cov %>% filter(assumption == "Random Slopes"))
+  fit4 <- tidy_func(fit4)
+  
   options(knitr.kable.NA = '')
-  fit1 %>% left_join(fit2, by = "term") %>% 
-    left_join(fit3, by = "term") %>% filter(term != "Residuals") %>% 
-    kable(digits = 4, col.names = c("", rep(c("partial_eta_sq", "size"), 3))) %>% 
+  fit1 %>% 
+    left_join(fit2, by = "term") %>% 
+    left_join(fit3, by = "term") %>% 
+    left_join(fit4, by = "term") %>% 
+    filter(term != "Residuals") %>% 
+    mutate(term = c("method", "beta", "Number of Schools (H)", 
+                    "Students per School (J)", "ICC_h", "method:beta", 
+                    "method:H", "method:J", "method:ICC_h", "beta:H", 
+                    "beta:J", "beta:ICC_h", "H:J", "H:ICC_h", "J:ICC_h")) %>% 
+    kable(digits = 4, col.names = c("", rep(c("p_eta_sq", "size"), 4))) %>% 
     kable_styling(full_width = F) %>% 
-    add_header_above(c(" " = 1, "Assumptions met" = 2, "heterosced" = 2, "exogeneity" = 2)) %>% 
-    scroll_box(height = "255px")
+    add_header_above(c(" " = 1, "Assumptions met" = 2, "Heterosced" = 2, 
+                       "Exogeneity" = 2, "Random Slopes" = 2)) 
+    # scroll_box(height = "255px")
 }
 ```
 
@@ -99,15 +113,13 @@ table_anova("bias", X)
 
 **Figure 1**
 
-*Parameter bias of the coefficient estimates of level-1 covariate using CCREM, two-way OLS-CRVE, and two-way FE-CRVE when exogeneity assumption is violated.*
+*Parameter bias of the coefficient estimates of level-1 covariate using CCREM, two-way OLS-CRVE, and two-way FE-CRVE for each assumption scenarios.*
 ```{r}
 # Figure 1
 fig1_bias <- X %>%
-  filter(assumption == "Exogeneity violated") %>% 
   ggplot(aes(x = H, y = bias, fill = method, color = method)) + 
   geom_boxplot(alpha = .6, lwd = .1) + 
-  facet_grid(J_f ~ paste0("School IUCC = ", ICC_h), 
-             scales = "free_y") +  
+  facet_grid(assumption ~ J_f, scales = "free_y") +  
   labs(x = "Number of Schools", y = "Parameter Bias") + 
   theme_bw() +
   theme(text = element_text(size = 10),
@@ -116,7 +128,7 @@ fig1_bias <- X %>%
         plot.caption=element_text(hjust = 0),
         axis.text.x = element_text(angle=90, hjust=1)) +
   scale_x_discrete(limits=c("20","70","150")) +
-  scale_y_continuous(limits = c(0, .005)) +
+  scale_y_continuous(limits = c(-.004, .005)) +
   scale_fill_manual(values = c("#FF0000", "#00A08A", "#046C9A")) +
   scale_color_manual(values = c("#FF0000", "#00A08A", "#046C9A"))
 fig1_bias
@@ -141,7 +153,7 @@ fig2_rmse <- X %>%
   mutate(rmse_std = 100*rmse/rmse[method == "CCREM"]) %>% 
   ggplot(aes(x = H, y = rmse_std, fill = method, color = method)) + 
   geom_boxplot(alpha = .6, lwd = .1) + 
-  facet_grid(assumption ~ paste0("IUCC = ", ICC_h), scales = "free_y") + 
+  facet_grid(assumption ~ J_f, scales = "free_y") + 
   labs(x = "Number of Schools", y = "Root Mean Squared Error (Standardized)") + 
   theme_bw() +
   theme(text = element_text(size = 10),
@@ -150,7 +162,7 @@ fig2_rmse <- X %>%
         plot.caption=element_text(hjust = 0),
         axis.text.x = element_text(angle=90, hjust=1)) +
   scale_x_discrete(limits=c("20","70","150")) +
-  scale_y_continuous(limits = c(50, 550)) +
+  scale_y_continuous(limits = c(40, 260)) +
   scale_fill_manual(values = c("#FF0000", "#00A08A", "#046C9A")) +
   scale_color_manual(values = c("#FF0000", "#00A08A", "#046C9A"))
 fig2_rmse
@@ -174,7 +186,7 @@ fig3_rej <- X %>%
   ggplot(aes(x = H, y = rej_rate, fill = method, color = method)) + 
   geom_hline(yintercept = .05, linetype = "dashed") +
   geom_boxplot(alpha = .6, lwd = .1) + 
-  facet_grid(assumption ~ paste0("IUCC = ", ICC_h), scales = "free_y") + 
+  facet_grid(assumption ~ J_f, scales = "free_y") + 
   labs(x = "Number of Schools", y = "Type I error rate") + 
   theme_bw() +
   theme(text = element_text(size = 10),
@@ -191,57 +203,17 @@ fig3_rej
 
 *Note*. Neighborhood IUCC is fixed at 0.05.
 
-## Confidence Interval Coverage
-**Table S5.6**
-```{r}
-# Table S5.6---------------------------------------------------------------
-table_anova("coverage", X)
-```
-
-**Figure 4**
-
-*Type I error rate of the coefficient estimates of level-1 covariate using CCREM, two-way OLS-CRVE and two-way FE-CRVE for each assumption scenarios.*
-```{r}
-# Figure 4----------------------------------------------------------------
-fig4_cov <- X %>%
-  ggplot(aes(x = H, y = coverage, fill = method, color = method)) + 
-  geom_hline(yintercept = c(.925, .975), linetype = "dashed") +
-  geom_hline(yintercept = c(.95)) +
-  geom_boxplot(alpha = .6, lwd = .1) + 
-  facet_grid(assumption ~ paste0("IUCC = ", ICC_h), scales = "free_y") + 
-  labs(x = "Number of Schools", y = "Coverage") + 
-  theme_bw() +
-  theme(text = element_text(size = 10),
-        legend.title = element_blank(),
-        legend.position = "bottom",
-        plot.caption=element_text(hjust = 0),
-        axis.text.x = element_text(angle=90, hjust=1)) +
-  scale_x_discrete(limits=c("20","70","150")) +
-  # scale_y_continuous(limits = c(0, 1)) +
-  scale_fill_manual(values = c("#FF0000", "#00A08A", "#046C9A")) +
-  scale_color_manual(values = c("#FF0000", "#00A08A", "#046C9A"))
-fig4_cov
-```
-
-*Note*. Neighborhood IUCC is fixed at 0.05.
-
-# 2. Level-2 covariate
+# 2. Level-2 covariates 
 
 ## Parameter Bias
-**Table SXX**
-
+**Neighborhood**
 ```{r}
 table_anova("bias", W)
-```
 
-**Figure X** 
-
-*Parameter bias of the coefficient estimates of level-2 covariate using CCREM, two-way OLS-CRVE, and two-way FE-CRVE when exogeneity assumption is violated.*
-```{r}
-fig1_bias <- W %>%
+s6_1_1_bias <- W %>%
   ggplot(aes(x = H, y = bias, fill = method, color = method)) + 
   geom_boxplot(alpha = .6, lwd = .1) + 
-  facet_grid(assumption ~ paste0("School IUCC = ", ICC_h), 
+  facet_grid(assumption ~ paste0("IUCC = ", ICC_h), 
              scales = "free_y") +  
   labs(x = "Number of Schools", y = "Parameter Bias") + 
   theme_bw() +
@@ -251,231 +223,46 @@ fig1_bias <- W %>%
         plot.caption=element_text(hjust = 0),
         axis.text.x = element_text(angle=90, hjust=1)) +
   scale_x_discrete(limits=c("20","70","150")) +
-  scale_y_continuous(limits = c(0, .004)) +
+  scale_y_continuous(limits = c(-.006, .01)) +
   scale_fill_manual(values = c("#FF0000", "#00A08A", "#046C9A")) +
   scale_color_manual(values = c("#FF0000", "#00A08A", "#046C9A"))
-fig1_bias
+s6_1_1_bias
 ```
 
-*Note*. Neighborhood IUCC is fixed at 0.05.
-
-## Root Mean Squared Error
-**Table SXX**
+**School**
 ```{r}
-# Table SXX---------------------------------------------------------------
-table_anova("rmse", W)
-```
+table_anova("bias", Z)
 
-**Figure2**
-
-*RMSE of the coefficient estimates of level-2 covariate using CCREM, two-way OLS-CRVE and two-way FE-CRVE for each assumption scenarios.*
-```{r}
-# Figure 2----------------------------------------------------------------
-fig2_rmse <- W %>% 
-  group_by(gamma100, gamma010, gamma002, H, G, ICC_h, J, assumption) %>% 
-  mutate(rmse_std = 100*rmse/rmse[method == "CCREM"]) %>% 
-  ggplot(aes(x = H, y = rmse_std, fill = method, color = method)) + 
-  geom_boxplot(alpha = .6, lwd = .1) + 
-  facet_grid(assumption ~ paste0("IUCC = ", ICC_h), scales = "free_y") + 
-  labs(x = "Number of Schools", y = "Root Mean Squared Error (Standardized)") + 
-  theme_bw() +
-  theme(text = element_text(size = 10),
-        legend.title = element_blank(),
-        legend.position = "bottom",
-        plot.caption=element_text(hjust = 0),
-        axis.text.x = element_text(angle=90, hjust=1)) +
-  scale_x_discrete(limits=c("20","70","150")) +
-  scale_y_continuous(limits = c(50, 200)) +
-  scale_fill_manual(values = c("#FF0000", "#00A08A", "#046C9A")) +
-  scale_color_manual(values = c("#FF0000", "#00A08A", "#046C9A"))
-fig2_rmse
-```
-
-*Note*. Neighborhood IUCC is fixed at 0.05.
-
-## Type I Error Rate
-**Table SXX**
-```{r}
-# Table SXX---------------------------------------------------------------
-table_anova("rej_rate", W)
-```
-
-**Figure 3**
-
-*Type I error rate of the coefficient estimates of level-2 covariate using CCREM, two-way OLS-CRVE and two-way FE-CRVE for each assumption scenarios.*
-```{r}
-# Figure 3----------------------------------------------------------------
-fig3_rej <- W %>% 
-  ggplot(aes(x = H, y = rej_rate, fill = method, color = method)) + 
-  geom_hline(yintercept = .05, linetype = "dashed") +
-  geom_boxplot(alpha = .6, lwd = .1) + 
-  facet_grid(assumption ~ paste0("IUCC = ", ICC_h), scales = "free_y") + 
-  labs(x = "Number of Schools", y = "Type I error rate") + 
-  theme_bw() +
-  theme(text = element_text(size = 10),
-        legend.title = element_blank(),
-        legend.position = "bottom",
-        plot.caption=element_text(hjust = 0),
-        axis.text.x = element_text(angle=90, hjust=1)) +
-  scale_x_discrete(limits=c("20","70","150")) +
-  # scale_y_continuous(limits = c(0, 1)) +
-  scale_fill_manual(values = c("#FF0000", "#00A08A", "#046C9A")) +
-  scale_color_manual(values = c("#FF0000", "#00A08A", "#046C9A"))
-fig3_rej
-```
-
-*Note*. Neighborhood IUCC is fixed at 0.05.
-
-## Confidence Interval Coverage
-**Table SXX**
-```{r}
-# Table SXX---------------------------------------------------------------
-table_anova("coverage", W)
-```
-
-**Figure 4**
-
-*Type I error rate of the coefficient estimates of level-2 covariate using CCREM, two-way OLS-CRVE and two-way FE-CRVE for each assumption scenarios.*
-```{r}
-# Figure 4----------------------------------------------------------------
-fig4_cov <- W %>% 
-  ggplot(aes(x = H, y = coverage, fill = method, color = method)) + 
-  geom_hline(yintercept = c(.925, .975), linetype = "dashed") +
-  geom_hline(yintercept = c(.95)) +
-  geom_boxplot(alpha = .6, lwd = .1) + 
-  facet_grid(assumption ~ paste0("IUCC = ", ICC_h), scales = "free_y") + 
-  labs(x = "Number of Schools", y = "Coverage") + 
-  theme_bw() +
-  theme(text = element_text(size = 10),
-        legend.title = element_blank(),
-        legend.position = "bottom",
-        plot.caption=element_text(hjust = 0),
-        axis.text.x = element_text(angle=90, hjust=1)) +
-  scale_x_discrete(limits=c("20","70","150")) +
-  # scale_y_continuous(limits = c(0, 1)) +
-  scale_fill_manual(values = c("#FF0000", "#00A08A", "#046C9A")) +
-  scale_color_manual(values = c("#FF0000", "#00A08A", "#046C9A"))
-fig4_cov
-```
-
-*Note*. Neighborhood IUCC is fixed at 0.05.
-
-# 3. Random slope
-```{r}
-results_rs <- results %>% 
-  filter(assumption %in% c("met", "random slopes")) %>% 
-  mutate(J = as.factor(J),
-         assumption = recode(assumption,
-                             "met" = "Correctly Specified", 
-                             "random slopes" = "Misspecified"),
-         assumption = factor(assumption, 
-                             levels = c("Correctly Specified", "Misspecified")))
-
-X <- results_rs %>% filter(cov == "X")
-W <- results_rs %>% filter(cov == "W")
-
-table_anova <- function(outcome, cov){
-  fit1 <- aov(as.formula(paste0(outcome, fml)), data = cov %>% filter(assumption == "Correctly Specified"))
-  fit1 <- tidy_func(fit1)
-  
-  fit2 <- aov(as.formula(paste0(outcome, fml)), data = cov %>% filter(assumption == "Misspecified"))
-  fit2 <- tidy_func(fit2)
-  
-  options(knitr.kable.NA = '')
-  fit1 %>% left_join(fit2, by = "term") %>% 
-    filter(term != "Residuals") %>% 
-    kable(digits = 4, col.names = c("", rep(c("partial_eta_sq", "size"), 2))) %>% 
-    kable_styling(full_width = F) %>% 
-    add_header_above(c(" " = 1, "Correctly Specified" = 2, "Misspecified" = 2)) %>% 
-    scroll_box(height = "255px")
-}
-```
-
-## Parameter Bias
-
-**Level-1 covariate**
-
-```{r}
-table_anova("bias", X)
-
-fig1_bias <- X %>%
-  ggplot(aes(x = J, y = bias, fill = method, color = method)) + 
-  geom_boxplot(alpha = .6, lwd = .1) + 
-  facet_grid(assumption ~ paste0("School IUCC = ", ICC_h), 
-             scales = "free_y") +  
-  labs(x = "Students per school", y = "Parameter Bias") + 
-  theme_bw() +
-  theme(text = element_text(size = 10),
-        legend.title = element_blank(),
-        legend.position = "bottom",
-        plot.caption=element_text(hjust = 0),
-        axis.text.x = element_text(angle=90, hjust=1)) +
-  scale_x_discrete(limits=c("30","100")) +
-  scale_y_continuous(limits = c(0, .003)) +
-  scale_fill_manual(values = c("#FF0000", "#00A08A", "#046C9A")) +
-  scale_color_manual(values = c("#FF0000", "#00A08A", "#046C9A"))
-fig1_bias
-```
-
-**Level-2 covariate**
-
-```{r}
-table_anova("bias", W)
-
-fig1_bias <- W %>%
+s6_1_2_bias <- Z %>%
   ggplot(aes(x = H, y = bias, fill = method, color = method)) + 
   geom_boxplot(alpha = .6, lwd = .1) + 
-  facet_grid(assumption ~ paste0("School IUCC = ", ICC_h), 
+  facet_grid(assumption ~ paste0("IUCC = ", ICC_h), 
              scales = "free_y") +  
-  labs(x = "Students per school", y = "Parameter Bias") + 
+  labs(x = "Number of Schools", y = "Parameter Bias") + 
   theme_bw() +
   theme(text = element_text(size = 10),
         legend.title = element_blank(),
         legend.position = "bottom",
         plot.caption=element_text(hjust = 0),
         axis.text.x = element_text(angle=90, hjust=1)) +
-  scale_x_discrete(limits=c("20", "70", "150")) +
-  scale_y_continuous(limits = c(-.01, .05)) +
+  scale_x_discrete(limits=c("20","70","150")) +
+  scale_y_continuous(limits = c(-.015, .01)) +
   scale_fill_manual(values = c("#FF0000", "#00A08A", "#046C9A")) +
   scale_color_manual(values = c("#FF0000", "#00A08A", "#046C9A"))
-fig1_bias
+s6_1_2_bias
 ```
 
 ## Root Mean Squared Error
-**Level-1 covariate**
-```{r}
-table_anova("rmse", X)
-
-fig2_rmse <- X %>% 
-  group_by(gamma100, gamma010, gamma002, H, G, ICC_h, J, assumption) %>% 
-  mutate(rmse_std = 100*rmse/rmse[method == "CCREM"]) %>% 
-  ggplot(aes(x = H, y = rmse_std, fill = method, color = method)) + 
-  geom_boxplot(alpha = .6, lwd = .1) + 
-  facet_grid(assumption ~ paste0("IUCC = ", ICC_h), scales = "free_y") + 
-  labs(x = "Number of Schools", y = "Root Mean Squared Error (Standardized)") + 
-  theme_bw() +
-  theme(text = element_text(size = 10),
-        legend.title = element_blank(),
-        legend.position = "bottom",
-        plot.caption=element_text(hjust = 0),
-        axis.text.x = element_text(angle=90, hjust=1)) +
-  scale_x_discrete(limits=c("20","70","150")) +
-  scale_y_continuous(limits = c(50, 200)) +
-  scale_fill_manual(values = c("#FF0000", "#00A08A", "#046C9A")) +
-  scale_color_manual(values = c("#FF0000", "#00A08A", "#046C9A"))
-fig2_rmse
-```
-
-**Level-2 covariate**
+**Neighborhood**
 ```{r}
 table_anova("rmse", W)
 
-fig2_rmse <- W %>% 
+s6_2_1_rmse <- W %>% 
   group_by(gamma100, gamma010, gamma002, H, G, ICC_h, J, assumption) %>% 
   mutate(rmse_std = 100*rmse/rmse[method == "CCREM"]) %>% 
   ggplot(aes(x = H, y = rmse_std, fill = method, color = method)) + 
   geom_boxplot(alpha = .6, lwd = .1) + 
-  facet_grid(assumption ~ paste0("IUCC = ", ICC_h), scales = "free_y") + 
+  facet_grid(assumption ~ J_f, scales = "free_y") + 
   labs(x = "Number of Schools", y = "Root Mean Squared Error (Standardized)") + 
   theme_bw() +
   theme(text = element_text(size = 10),
@@ -484,45 +271,46 @@ fig2_rmse <- W %>%
         plot.caption=element_text(hjust = 0),
         axis.text.x = element_text(angle=90, hjust=1)) +
   scale_x_discrete(limits=c("20","70","150")) +
-  scale_y_continuous(limits = c(50, 200)) +
+  scale_y_continuous(limits = c(90, 160)) +
   scale_fill_manual(values = c("#FF0000", "#00A08A", "#046C9A")) +
   scale_color_manual(values = c("#FF0000", "#00A08A", "#046C9A"))
-fig2_rmse
+s6_2_1_rmse
+```
+
+**School**
+```{r}
+table_anova("rmse", Z)
+
+s6_2_2_rmse <- Z %>% 
+  group_by(gamma100, gamma010, gamma002, H, G, ICC_h, J, assumption) %>% 
+  mutate(rmse_std = 100*rmse/rmse[method == "CCREM"]) %>% 
+  ggplot(aes(x = H, y = rmse_std, fill = method, color = method)) + 
+  geom_boxplot(alpha = .6, lwd = .1) + 
+  facet_grid(assumption ~ J_f, scales = "free_y") + 
+  labs(x = "Number of Schools", y = "Root Mean Squared Error (Standardized)") + 
+  theme_bw() +
+  theme(text = element_text(size = 10),
+        legend.title = element_blank(),
+        legend.position = "bottom",
+        plot.caption=element_text(hjust = 0),
+        axis.text.x = element_text(angle=90, hjust=1)) +
+  scale_x_discrete(limits=c("20","70","150")) +
+  scale_y_continuous(limits = c(98, 104)) +
+  scale_fill_manual(values = c("#FF0000", "#00A08A", "#046C9A")) +
+  scale_color_manual(values = c("#FF0000", "#00A08A", "#046C9A"))
+s6_2_2_rmse
 ```
 
 ## Type I Error Rate
-**Level-1 covariate**
-```{r}
-table_anova("rej_rate", X)
-
-fig3_rej <- X %>% 
-  ggplot(aes(x = H, y = rej_rate, fill = method, color = method)) + 
-  geom_hline(yintercept = .05, linetype = "dashed") +
-  geom_boxplot(alpha = .6, lwd = .1) + 
-  facet_grid(assumption ~ paste0("IUCC = ", ICC_h), scales = "free_y") + 
-  labs(x = "Number of Schools", y = "Type I error rate") + 
-  theme_bw() +
-  theme(text = element_text(size = 10),
-        legend.title = element_blank(),
-        legend.position = "bottom",
-        plot.caption=element_text(hjust = 0),
-        axis.text.x = element_text(angle=90, hjust=1)) +
-  scale_x_discrete(limits=c("20","70","150")) +
-  # scale_y_continuous(limits = c(0, 1)) +
-  scale_fill_manual(values = c("#FF0000", "#00A08A", "#046C9A")) +
-  scale_color_manual(values = c("#FF0000", "#00A08A", "#046C9A"))
-fig3_rej
-```
-
-**Level-2 covariate**
+**Neighborhood**
 ```{r}
 table_anova("rej_rate", W)
 
-fig3_rej <- W %>% 
+s6_3_1_rej <- W %>% 
   ggplot(aes(x = H, y = rej_rate, fill = method, color = method)) + 
   geom_hline(yintercept = .05, linetype = "dashed") +
   geom_boxplot(alpha = .6, lwd = .1) + 
-  facet_grid(assumption ~ paste0("IUCC = ", ICC_h), scales = "free_y") + 
+  facet_grid(assumption ~ J_f, scales = "free_y") + 
   labs(x = "Number of Schools", y = "Type I error rate") + 
   theme_bw() +
   theme(text = element_text(size = 10),
@@ -531,24 +319,22 @@ fig3_rej <- W %>%
         plot.caption=element_text(hjust = 0),
         axis.text.x = element_text(angle=90, hjust=1)) +
   scale_x_discrete(limits=c("20","70","150")) +
-  # scale_y_continuous(limits = c(0, 1)) +
+  scale_y_continuous(limits = c(0.03, .11)) +
   scale_fill_manual(values = c("#FF0000", "#00A08A", "#046C9A")) +
   scale_color_manual(values = c("#FF0000", "#00A08A", "#046C9A"))
-fig3_rej
+s6_3_1_rej
 ```
 
-## Confidence Interval Coverage
-**Level-1 covariate**
+**School**
 ```{r}
-table_anova("coverage", X)
+table_anova("rej_rate", Z)
 
-fig4_cov <- X %>% 
-  ggplot(aes(x = H, y = coverage, fill = method, color = method)) + 
-  geom_hline(yintercept = c(.925, .975), linetype = "dashed") +
-  geom_hline(yintercept = c(.95)) +
+s6_3_2_rej <- Z %>% 
+  ggplot(aes(x = H, y = rej_rate, fill = method, color = method)) + 
+  geom_hline(yintercept = .05, linetype = "dashed") +
   geom_boxplot(alpha = .6, lwd = .1) + 
   facet_grid(assumption ~ J_f, scales = "free_y") + 
-  labs(x = "Number of Schools", y = "Coverage") + 
+  labs(x = "Number of Schools", y = "Type I error rate") + 
   theme_bw() +
   theme(text = element_text(size = 10),
         legend.title = element_blank(),
@@ -556,32 +342,8 @@ fig4_cov <- X %>%
         plot.caption=element_text(hjust = 0),
         axis.text.x = element_text(angle=90, hjust=1)) +
   scale_x_discrete(limits=c("20","70","150")) +
-  # scale_y_continuous(limits = c(0, 1)) +
+  # scale_y_continuous(limits = c(0.03, .14)) +
   scale_fill_manual(values = c("#FF0000", "#00A08A", "#046C9A")) +
   scale_color_manual(values = c("#FF0000", "#00A08A", "#046C9A"))
-fig4_cov
-```
-
-**Level-2 covariate**
-```{r}
-table_anova("coverage", W)
-
-fig4_cov <- W %>% 
-  ggplot(aes(x = H, y = coverage, fill = method, color = method)) + 
-  geom_hline(yintercept = c(.925, .975), linetype = "dashed") +
-  geom_hline(yintercept = c(.95)) +
-  geom_boxplot(alpha = .6, lwd = .1) + 
-  facet_grid(assumption ~ J_f, scales = "free_y") + 
-  labs(x = "Number of Schools", y = "Coverage") + 
-  theme_bw() +
-  theme(text = element_text(size = 10),
-        legend.title = element_blank(),
-        legend.position = "bottom",
-        plot.caption=element_text(hjust = 0),
-        axis.text.x = element_text(angle=90, hjust=1)) +
-  scale_x_discrete(limits=c("20","70","150")) +
-  # scale_y_continuous(limits = c(0, 1)) +
-  scale_fill_manual(values = c("#FF0000", "#00A08A", "#046C9A")) +
-  scale_color_manual(values = c("#FF0000", "#00A08A", "#046C9A"))
-fig4_cov
+s6_3_2_rej
 ```
