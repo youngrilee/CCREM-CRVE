@@ -153,7 +153,7 @@ table_anova("rmse", W)
 table_anova("rmse", Z)
 
 # Table S6.3.1-------------------------------------------------------------
-table_anova("rej_rate", W)
+table_anova("coverage", W)
 
 # Table S6.3.2-------------------------------------------------------------
-table_anova("rej_rate", Z)
+table_anova("coverage", Z)

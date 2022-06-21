@@ -65,7 +65,7 @@ fig2_rmse <- X %>%
         plot.caption=element_text(hjust = 0),
         axis.text.x = element_text(angle=90, hjust=1)) +
   scale_x_discrete(limits=c("20","70","150")) +
-  scale_y_continuous(limits = c(40, 260)) +
+  scale_y_continuous(limits = c(0, 260)) +
   scale_fill_manual(values = c("#FF0000", "#00A08A", "#046C9A")) +
   scale_color_manual(values = c("#FF0000", "#00A08A", "#046C9A"))
 
@@ -74,12 +74,13 @@ fig2_rmse
 dev.off()
 
 # Figure 3----------------------------------------------------------------
-fig3_rej <- X %>%
-  ggplot(aes(x = H, y = rej_rate, fill = method, color = method)) + 
-  geom_hline(yintercept = .05, linetype = "dashed") +
+fig3_cov <- X %>%
+  ggplot(aes(x = H, y = coverage, fill = method, color = method)) + 
+  geom_hline(yintercept = c(.925, .975), linetype = "dashed") +
+  geom_hline(yintercept = c(.95)) +
   geom_boxplot(alpha = .6, lwd = .1) + 
   facet_grid(assumption ~ J_f, scales = "free_y") + 
-  labs(x = "Number of Schools", y = "Type I error rate") + 
+  labs(x = "Number of Schools", y = "Coverage") + 
   theme_bw() +
   theme(text = element_text(size = 10),
         legend.title = element_blank(),
@@ -87,12 +88,12 @@ fig3_rej <- X %>%
         plot.caption=element_text(hjust = 0),
         axis.text.x = element_text(angle=90, hjust=1)) +
   scale_x_discrete(limits=c("20","70","150")) +
-  # scale_y_continuous(limits = c(0, 1)) +
+  scale_y_continuous(limits = c(NA, 1)) +
   scale_fill_manual(values = c("#FF0000", "#00A08A", "#046C9A")) +
   scale_color_manual(values = c("#FF0000", "#00A08A", "#046C9A"))
 
-tiff("fig3_rej.tiff", units="in", width=8, height=7, res=300)
-fig3_rej
+tiff("fig3_cov.tiff", units="in", width=8, height=7, res=300)
+fig3_cov
 dev.off()
 
 # Figure S4.1-------------------------------------------------------------
@@ -162,28 +163,6 @@ s5_2_rmse <- X %>%
 
 tiff("s5_2_rmse.tiff", units="in", width=8, height=7, res=300)
 s5_2_rmse
-dev.off()
-
-# Figure S5.3-------------------------------------------------------------
-s5_3_rej <- X %>%
-  ggplot(aes(x = H, y = rej_rate, fill = method, color = method)) + 
-  geom_hline(yintercept = .05, linetype = "dashed") +
-  geom_boxplot(alpha = .6, lwd = .1) + 
-  facet_grid(assumption ~ paste0("IUCC = ", ICC_h), scales = "free_y") + 
-  labs(x = "Number of Schools", y = "Type I error rate") + 
-  theme_bw() +
-  theme(text = element_text(size = 10),
-        legend.title = element_blank(),
-        legend.position = "bottom",
-        plot.caption=element_text(hjust = 0),
-        axis.text.x = element_text(angle=90, hjust=1)) +
-  scale_x_discrete(limits=c("20","70","150")) +
-  # scale_y_continuous(limits = c(0, 1)) +
-  scale_fill_manual(values = c("#FF0000", "#00A08A", "#046C9A")) +
-  scale_color_manual(values = c("#FF0000", "#00A08A", "#046C9A"))
-
-tiff("s5_3_rej.tiff", units="in", width=8, height=7, res=300)
-s5_3_rej
 dev.off()
 
 # Figure S6.1.1------------------------------------------------------------
@@ -277,12 +256,13 @@ s6_2_2_rmse
 dev.off()
 
 # Figure S6.3.1------------------------------------------------------------
-s6_3_1_rej <- W %>% 
-  ggplot(aes(x = H, y = rej_rate, fill = method, color = method)) + 
-  geom_hline(yintercept = .05, linetype = "dashed") +
+s6_3_1_cov <- W %>% 
+  ggplot(aes(x = H, y = coverage, fill = method, color = method)) + 
+  geom_hline(yintercept = c(.925, .975), linetype = "dashed") +
+  geom_hline(yintercept = c(.95)) +
   geom_boxplot(alpha = .6, lwd = .1) + 
   facet_grid(assumption ~ J_f, scales = "free_y") + 
-  labs(x = "Number of Schools", y = "Type I error rate") + 
+  labs(x = "Number of Schools", y = "Coverage") + 
   theme_bw() +
   theme(text = element_text(size = 10),
         legend.title = element_blank(),
@@ -290,21 +270,22 @@ s6_3_1_rej <- W %>%
         plot.caption=element_text(hjust = 0),
         axis.text.x = element_text(angle=90, hjust=1)) +
   scale_x_discrete(limits=c("20","70","150")) +
-  scale_y_continuous(limits = c(0.03, .11)) +
+  scale_y_continuous(limits = c(NA, 1)) +
   scale_fill_manual(values = c("#FF0000", "#00A08A", "#046C9A")) +
   scale_color_manual(values = c("#FF0000", "#00A08A", "#046C9A"))
 
-tiff("s6_3_1_rej.tiff", units="in", width=8, height=7, res=300)
-s6_3_1_rej
+tiff("s6_3_1_cov.tiff", units="in", width=8, height=7, res=300)
+s6_3_1_cov
 dev.off()
 
 # Figure S6.3.2------------------------------------------------------------
-s6_3_2_rej <- Z %>% 
-  ggplot(aes(x = H, y = rej_rate, fill = method, color = method)) + 
-  geom_hline(yintercept = .05, linetype = "dashed") +
+s6_3_2_cov <- Z %>% 
+  ggplot(aes(x = H, y = coverage, fill = method, color = method)) + 
+  geom_hline(yintercept = c(.925, .975), linetype = "dashed") +
+  geom_hline(yintercept = c(.95)) +
   geom_boxplot(alpha = .6, lwd = .1) + 
   facet_grid(assumption ~ J_f, scales = "free_y") + 
-  labs(x = "Number of Schools", y = "Type I error rate") + 
+  labs(x = "Number of Schools", y = "Coverage") + 
   theme_bw() +
   theme(text = element_text(size = 10),
         legend.title = element_blank(),
@@ -312,10 +293,10 @@ s6_3_2_rej <- Z %>%
         plot.caption=element_text(hjust = 0),
         axis.text.x = element_text(angle=90, hjust=1)) +
   scale_x_discrete(limits=c("20","70","150")) +
-  # scale_y_continuous(limits = c(0.03, .14)) +
+  scale_y_continuous(limits = c(NA, 1)) +
   scale_fill_manual(values = c("#FF0000", "#00A08A", "#046C9A")) +
   scale_color_manual(values = c("#FF0000", "#00A08A", "#046C9A"))
 
-tiff("s6_3_2_rej.tiff", units="in", width=8, height=7, res=300)
-s6_3_2_rej
+tiff("s6_3_2_cov.tiff", units="in", width=8, height=7, res=300)
+s6_3_2_cov
 dev.off()

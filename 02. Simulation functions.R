@@ -126,7 +126,7 @@ estimate_ols <- function(dat) {
   
   # estimation
   model_ols <- felm(y ~ X + W + Z | 0 | 0 | schid + neighid, 
-                    data = dat, psdef = TRUE) # see the vignette
+                    data = dat, psdef = FALSE) # see the vignette
   summary <- coeftest(model_ols)
   
   # fixed effects
@@ -145,7 +145,7 @@ estimate_fe <- function(dat) {
   # estimation
   ## felm(equation | fixed effect | 0 | clustering)
   model_fem <- felm(y ~ X | schid + neighid | 0 | schid + neighid, 
-                    data = dat, psdef = TRUE)
+                    data = dat, psdef = FALSE)
   summary <- summary(model_fem)
   
   # fixed effects
