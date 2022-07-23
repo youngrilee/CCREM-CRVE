@@ -52,7 +52,7 @@ plan("multisession")
 system.time(
   results <-
     params %>%
-    mutate(res = future_pmap(., .f = run_sim, .options = furr_options(seed=NULL))) %>%
+    mutate(res = future_pmap(., .f = run_sim, .options = furrr_options(seed=NULL))) %>%
     unnest(cols = res)
 ) 
 
