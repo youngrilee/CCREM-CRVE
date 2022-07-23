@@ -2,7 +2,7 @@
 library(tidyverse)
 library(wesanderson)
 
-load("sim_results.RData")
+load("04. Codes/sim_results.RData")
 results <- 
   results %>% 
   mutate(method = recode(method, "OLS" = "OLS-CRVE", "FE" = "FE-CRVE"),
@@ -52,12 +52,11 @@ dev.off()
 
 # Figure 2----------------------------------------------------------------
 fig2_rmse <- X %>%
-  group_by(gamma100, gamma010, gamma002, H, G, ICC_h, J, assumption) %>% 
-  mutate(rmse_std = 100*rmse/rmse[method == "CCREM"]) %>% 
+  mutate(rmse_std = sqrt(G * J) * rmse) %>% 
   ggplot(aes(x = H, y = rmse_std, fill = method, color = method)) + 
   geom_boxplot(alpha = .6, lwd = .1) + 
   facet_grid(assumption ~ J_f, scales = "free_y") + 
-  labs(x = "Number of Schools", y = "Root Mean Squared Error (Standardized)") + 
+  labs(x = "Number of Schools", y = expression(RMSE %*% sqrt(N))) + 
   theme_bw() +
   theme(text = element_text(size = 10),
         legend.title = element_blank(),
@@ -65,13 +64,14 @@ fig2_rmse <- X %>%
         plot.caption=element_text(hjust = 0),
         axis.text.x = element_text(angle=90, hjust=1)) +
   scale_x_discrete(limits=c("20","70","150")) +
-  scale_y_continuous(limits = c(0, 260)) +
+  expand_limits(y = 0) + 
   scale_fill_manual(values = c("#FF0000", "#00A08A", "#046C9A")) +
   scale_color_manual(values = c("#FF0000", "#00A08A", "#046C9A"))
 
 tiff("fig2_rmse.tiff", units="in", width=8, height=7, res=300)
 fig2_rmse
 dev.off()
+
 
 # Figure 3----------------------------------------------------------------
 fig3_cov <- X %>%
@@ -144,12 +144,11 @@ dev.off()
 
 # Figure S5.2-------------------------------------------------------------
 s5_2_rmse <- X %>% 
-  group_by(assumption, ICC_h, H) %>% 
-  mutate(rmse_std = 100*rmse/rmse[method == "CCREM"]) %>% 
+  mutate(rmse_std = sqrt(G * J) * rmse) %>% 
   ggplot(aes(x = H, y = rmse_std, fill = method, color = method)) + 
   geom_boxplot(alpha = .6, lwd = .1) + 
   facet_grid(assumption ~ paste0("IUCC = ", ICC_h), scales = "free_y") +
-  labs(x = "Number of Schools", y = "Root Mean Squared Error") + 
+  labs(x = "Number of Schools", y = expression(RMSE %*% sqrt(N))) + 
   theme_bw() +
   theme(text = element_text(size = 10),
         legend.title = element_blank(),
@@ -157,12 +156,34 @@ s5_2_rmse <- X %>%
         plot.caption=element_text(hjust = 0),
         axis.text.x = element_text(angle=90, hjust=1)) +
   scale_x_discrete(limits=c("20","70","150")) +
-  scale_y_continuous(limits = c(0, 290)) +
+  expand_limits(y = 0) + 
   scale_fill_manual(values = c("#FF0000", "#00A08A", "#046C9A")) +
   scale_color_manual(values = c("#FF0000", "#00A08A", "#046C9A"))
 
 tiff("s5_2_rmse.tiff", units="in", width=8, height=7, res=300)
 s5_2_rmse
+dev.off()
+
+# Figure S5.3-------------------------------------------------------------
+s5_3_rej <- X %>%
+  ggplot(aes(x = H, y = rej_rate, fill = method, color = method)) + 
+  geom_hline(yintercept = .05, linetype = "dashed") +
+  geom_boxplot(alpha = .6, lwd = .1) + 
+  facet_grid(assumption ~ paste0("IUCC = ", ICC_h), scales = "free_y") + 
+  labs(x = "Number of Schools", y = "Type I error rate") + 
+  theme_bw() +
+  theme(text = element_text(size = 10),
+        legend.title = element_blank(),
+        legend.position = "bottom",
+        plot.caption=element_text(hjust = 0),
+        axis.text.x = element_text(angle=90, hjust=1)) +
+  scale_x_discrete(limits=c("20","70","150")) +
+  # scale_y_continuous(limits = c(0, 1)) +
+  scale_fill_manual(values = c("#FF0000", "#00A08A", "#046C9A")) +
+  scale_color_manual(values = c("#FF0000", "#00A08A", "#046C9A"))
+
+tiff("s5_3_rej.tiff", units="in", width=8, height=7, res=300)
+s5_3_rej
 dev.off()
 
 # Figure S6.1.1------------------------------------------------------------
@@ -211,12 +232,11 @@ dev.off()
 
 # Figure S6.2.1------------------------------------------------------------
 s6_2_1_rmse <- W %>% 
-  group_by(gamma100, gamma010, gamma002, H, G, ICC_h, J, assumption) %>% 
-  mutate(rmse_std = 100*rmse/rmse[method == "CCREM"]) %>% 
+  mutate(rmse_std = sqrt(G) * rmse) %>%  
   ggplot(aes(x = H, y = rmse_std, fill = method, color = method)) + 
   geom_boxplot(alpha = .6, lwd = .1) + 
   facet_grid(assumption ~ J_f, scales = "free_y") + 
-  labs(x = "Number of Schools", y = "Root Mean Squared Error (Standardized)") + 
+  labs(x = "Number of Schools", y = expression(RMSE %*% sqrt(G))) + 
   theme_bw() +
   theme(text = element_text(size = 10),
         legend.title = element_blank(),
@@ -224,7 +244,7 @@ s6_2_1_rmse <- W %>%
         plot.caption=element_text(hjust = 0),
         axis.text.x = element_text(angle=90, hjust=1)) +
   scale_x_discrete(limits=c("20","70","150")) +
-  scale_y_continuous(limits = c(90, 160)) +
+  expand_limits(y = 0) +
   scale_fill_manual(values = c("#FF0000", "#00A08A", "#046C9A")) +
   scale_color_manual(values = c("#FF0000", "#00A08A", "#046C9A"))
 
@@ -234,12 +254,11 @@ dev.off()
 
 # Figure S6.2.2------------------------------------------------------------
 s6_2_2_rmse <- Z %>% 
-  group_by(gamma100, gamma010, gamma002, H, G, ICC_h, J, assumption) %>% 
-  mutate(rmse_std = 100*rmse/rmse[method == "CCREM"]) %>% 
+  mutate(rmse_std = sqrt(as.numeric(H)) * rmse) %>%   
   ggplot(aes(x = H, y = rmse_std, fill = method, color = method)) + 
   geom_boxplot(alpha = .6, lwd = .1) + 
   facet_grid(assumption ~ J_f, scales = "free_y") + 
-  labs(x = "Number of Schools", y = "Root Mean Squared Error (Standardized)") + 
+  labs(x = "Number of Schools", y = expression(RMSE %*% sqrt(H))) + 
   theme_bw() +
   theme(text = element_text(size = 10),
         legend.title = element_blank(),
@@ -247,7 +266,7 @@ s6_2_2_rmse <- Z %>%
         plot.caption=element_text(hjust = 0),
         axis.text.x = element_text(angle=90, hjust=1)) +
   scale_x_discrete(limits=c("20","70","150")) +
-  scale_y_continuous(limits = c(98, 104)) +
+  expand_limits(y = 0) +
   scale_fill_manual(values = c("#FF0000", "#00A08A", "#046C9A")) +
   scale_color_manual(values = c("#FF0000", "#00A08A", "#046C9A"))
 
